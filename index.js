@@ -40,6 +40,15 @@ const emojis = {
   weather: { Sunny: '☀️', Rainy: '🌧️', Cloudy: '☁️', Stormy: '⛈️', Snowy: '❄️', Windy: '🌬️', Foggy: '🌫️' },
 };
 
+// Pings für jede Frucht (Discord Rollen-IDs eintragen)
+const fruitPings = {
+  Carrot: '<@&1399349391084621834>',     // Beispiel: Karotten-Rolle
+  Daffodil: '<@&ROLE_ID2>',
+  Strawberry: '<@&ROLE_ID3>',
+  Tomato: '<@&ROLE_ID4>',
+  Blueberry: '<@&ROLE_ID5>',
+};
+
 let lastStockData = null;
 let lastWeatherData = null;
 
@@ -60,14 +69,15 @@ client.once('ready', () => {
 
   // Status & Aktivität setzen
   client.user.setPresence({
-    status: 'dnd', // online, idle, dnd, invisible
+    status: 'dnd',
     activities: [
       {
         name: 'Grow a Garden 🌱',
-        type: ActivityType.Playing, // z.B. Playing, Watching, Listening, Streaming
+        type: ActivityType.Playing,
       },
     ],
   });
+
   initializeData()
     .then(() => scheduleNextCheck());
 });
@@ -102,7 +112,7 @@ async function fetchData(type) {
   return response.json();
 }
 
-// Initiale Daten laden, damit keine unnötigen Nachrichten gesendet werden
+// Initiale Daten laden
 async function initializeData() {
   try {
     const [stockData, weatherData] = await Promise.all([fetchData('stock'), fetchData('weather')]);
@@ -143,9 +153,18 @@ async function checkForUpdates() {
     const [stockData, weatherData] = await Promise.all([fetchData('stock'), fetchData('weather')]);
 
     if (!isEqual(lastStockData, stockData)) {
-      await channel.send({ embeds: [buildStockEmbed(stockData)] });
+      // Pings für vorhandene Früchte sammeln
+      let pings = [];
+      if (Array.isArray(stockData.seedsStock)) {
+        for (const item of stockData.seedsStock) {
+          if (fruitPings[item.name]) pings.push(fruitPings[item.name]);
+        }
+      }
+      const content = pings.length > 0 ? pings.join(' ') : null;
+
+      await channel.send({ content, embeds: [buildStockEmbed(stockData)] });
       lastStockData = stockData;
-      console.log('📢 Stock updated, message sent.');
+      console.log('📢 Stock updated, message sent with pings.');
     } else {
       console.log('No stock changes.');
     }
@@ -189,7 +208,7 @@ function createWeatherEmbed(weatherName) {
     .setTimestamp();
 }
 
-// Lagerbestand Embed erstellen (verbessert & übersichtlich)
+// Lagerbestand Embed erstellen
 function buildStockEmbed(stockData) {
   const embed = new EmbedBuilder()
     .setTitle('🌾 Grow a Garden — Current Stock')
