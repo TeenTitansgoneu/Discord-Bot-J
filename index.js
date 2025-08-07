@@ -40,15 +40,6 @@ const emojis = {
   weather: { Sunny: '☀️', Rainy: '🌧️', Cloudy: '☁️', Stormy: '⛈️', Snowy: '❄️', Windy: '🌬️', Foggy: '🌫️' },
 };
 
-// Pings für jede Frucht (Discord Rollen-IDs eintragen)
-const fruitPings = {
-  Carrot: '<@&1399349391084621834>',     // Beispiel: Karotten-Rolle
-  Daffodil: '<@&ROLE_ID2>',
-  Strawberry: '<@&ROLE_ID3>',
-  Tomato: '<@&ROLE_ID4>',
-  Blueberry: '<@&ROLE_ID5>',
-};
-
 let lastStockData = null;
 let lastWeatherData = null;
 
@@ -69,15 +60,14 @@ client.once('ready', () => {
 
   // Status & Aktivität setzen
   client.user.setPresence({
-    status: 'dnd',
+    status: 'dnd', // online, idle, dnd, invisible
     activities: [
       {
         name: 'Grow a Garden 🌱',
-        type: ActivityType.Playing,
+        type: ActivityType.Playing, // z.B. Playing, Watching, Listening, Streaming
       },
     ],
   });
-
   initializeData()
     .then(() => scheduleNextCheck());
 });
@@ -112,7 +102,7 @@ async function fetchData(type) {
   return response.json();
 }
 
-// Initiale Daten laden
+// Initiale Daten laden, damit keine unnötigen Nachrichten gesendet werden
 async function initializeData() {
   try {
     const [stockData, weatherData] = await Promise.all([fetchData('stock'), fetchData('weather')]);
@@ -153,18 +143,9 @@ async function checkForUpdates() {
     const [stockData, weatherData] = await Promise.all([fetchData('stock'), fetchData('weather')]);
 
     if (!isEqual(lastStockData, stockData)) {
-      // Pings für vorhandene Früchte sammeln
-      let pings = [];
-      if (Array.isArray(stockData.seedsStock)) {
-        for (const item of stockData.seedsStock) {
-          if (fruitPings[item.name]) pings.push(fruitPings[item.name]);
-        }
-      }
-      const content = pings.length > 0 ? pings.join(' ') : null;
-
-      await channel.send({ content, embeds: [buildStockEmbed(stockData)] });
+      await channel.send({ embeds: [buildStockEmbed(stockData)] });
       lastStockData = stockData;
-      console.log('📢 Stock updated, message sent with pings.');
+      console.log('📢 Stock updated, message sent.');
     } else {
       console.log('No stock changes.');
     }
@@ -172,7 +153,7 @@ async function checkForUpdates() {
     if (!isEqual(lastWeatherData, weatherData.weather)) {
       await sendWeatherEmbeds(channel, weatherData.weather);
       lastWeatherData = weatherData.weather;
-      console.log('🌦️ Weather updated, messages sent.');
+      console.log('🌦️ Weather updated, message sent.');
     } else {
       console.log('No weather changes.');
     }
@@ -181,34 +162,37 @@ async function checkForUpdates() {
   }
 }
 
-// Wetter-Embed(s) senden
+// Wetter-Embed(s) senden (in nur einer Nachricht)
 async function sendWeatherEmbeds(channel, weather) {
+  let weatherDescriptions = [];
+
   if (Array.isArray(weather)) {
     for (const w of weather) {
-      await channel.send({ embeds: [createWeatherEmbed(w)] });
+      const emoji = emojis.weather[w] || '🌤️';
+      weatherDescriptions.push(`${emoji} **${w}**`);
     }
   } else if (typeof weather === 'object') {
     for (const key in weather) {
       if (weather[key]) {
-        await channel.send({ embeds: [createWeatherEmbed(key)] });
+        const emoji = emojis.weather[key] || '🌤️';
+        weatherDescriptions.push(`${emoji} **${key}**`);
       }
     }
   } else {
-    await channel.send({ embeds: [createWeatherEmbed(weather)] });
+    const emoji = emojis.weather[weather] || '🌤️';
+    weatherDescriptions.push(`${emoji} **${weather}**`);
   }
-}
 
-// Wetter Embed erstellen
-function createWeatherEmbed(weatherName) {
-  const emoji = emojis.weather[weatherName] || '🌤️';
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setTitle('☁️ Weather Update')
-    .setDescription(`${emoji} **${weatherName}**`)
+    .setDescription(weatherDescriptions.join('\n'))
     .setColor('#87CEEB')
     .setTimestamp();
+
+  await channel.send({ embeds: [embed] });
 }
 
-// Lagerbestand Embed erstellen
+// Lagerbestand Embed erstellen (übersichtlich)
 function buildStockEmbed(stockData) {
   const embed = new EmbedBuilder()
     .setTitle('🌾 Grow a Garden — Current Stock')
